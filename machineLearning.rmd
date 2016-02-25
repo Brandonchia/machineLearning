@@ -1,0 +1,88 @@
+---
+title: "Prediction Assignment"
+author: "Brandon Chia"
+date: "February 24, 2016"
+output: html_document
+---
+## 1. Abstract
+***
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website [here:]( http://groupware.les.inf.puc-rio.br/har)
+
+## 2. Data Analysis
+***
+### 2.1 Data Sourse
+
+The training and test dataset for this project are available here:
+
+[training dataset](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+[test dataset](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+The data for this project come from this [source:]( http://groupware.les.inf.puc-rio.br/har). If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+### 2.2 Get Data and Clean Data
+#### 2.2.1 Read the data and delete useless columns
+
+```{r,cache=TRUE,results='hide',echo=TRUE}
+library(caret);library(randomForest);library(e1071);library(corrplot)
+temp1 <- tempfile();temp2 <- tempfile()
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",destfile=temp1)
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",destfile=temp2)
+train <- read.csv(temp1,header = TRUE,na.strings = c('','NA'))
+test <- read.csv(temp2, header = TRUE,na.strings = c('','NA'))
+index <- which(colSums(is.na(train))!=0)
+train <- train[,-index]
+train <- train[,-(1:7)] 
+```
+#### 2.2.2 Split training dataset for fitting model and cross-validation
+
+```{r, echo=TRUE,results='hold'}
+library(caret)
+inTrain = createDataPartition(y = train$classe, p = 0.6, list = FALSE)
+trainset<-train[inTrain, ]
+validset<- train[-inTrain, ]
+```
+### 2.3 Fit Model
+
+For this part, I would show you two model. I hired PCA analysis and RF model to fit the model while I hire RF model directly. The reason I tried the second model is that the first model did not worked perfectly in the quiz part. Fortunately, the second model worked well.
+
+#### 2.3.1 Method 1: PCA + RF
+
+In this model, firstly, I hired PCA analysis to check the correlation between different variables. Then I fitted the model using RF mode. I would show you more details.
+
+* Part 1: PCA analysis
+
+```{r,results='hide'}
+library(randomForest)
+```
+
+```{r,results='hold'}
+corrplot::corrplot(cor(trainset[,1:45]),order='FPC',method='color',type='upper')
+pre<- preProcess(trainset[,1:45],method='pca',thresh=0.99)
+train1 <- predict(pre,trainset[,1:45])
+valid1 <- predict(pre,validset[,1:45])
+```
+
+As you could see from legend right behind the plot, there are several variables closely relative (postively or negatively) to each other. So, it is intuitive to hire PCA.
+
+* Part 2: Fitting the model and cross valid.
+
+```{r,results='hold'}
+fit1 <-randomForest(trainset$classe~.,data=trainset,ntree=25,importance=TRUE)
+valid1 <- predict(fit1,validset)
+confusionMatrix(valid1,validset$classe)
+```
+
+#### 2.3.2 Method 2: RF
+* Fit the model and cross-valid
+
+```{r,results='hold'}
+fit2 <- train(classe~.,data=trainset,methods='rf',tuneLength = 1,ntree = 25)
+valid2 <- predict(fit2,validset)
+confusionMatrix(valid2,validset$classe)
+```
+## 3. Predict test dataset
+***
+```{r,results='hold'}
+predict(fit2,test)
+```
